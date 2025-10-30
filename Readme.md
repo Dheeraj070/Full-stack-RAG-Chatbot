@@ -1,4 +1,4 @@
-# 🤖 Engineering Chatbot
+# 🤖 Full-stack-RAG-Chatbot
 
 **An AI-powered chatbot for engineering students with PDF analysis capabilities**
 
@@ -59,7 +59,7 @@ context-aware responses based on your uploaded documents.
 ## 📁 Directory Structure
 
 ```
-engineering-chatbot/
+Full-stack-RAG-Chatbot/
 ├── backend/                # Flask REST API
 │   ├── app/
 │   │   ├── models/         # Database models (User, Chat, PDF, etc.)
