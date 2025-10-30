@@ -67,7 +67,7 @@ class PDFDocument:
             'file_size': pdf['file_size'],
             'page_count': pdf.get('page_count', 0),
             'processed': pdf.get('processed', False),
-            'created_at': pdf['created_at'].isoformat()
+            'created_at': pdf['created_at'].isoformat() + 'Z'
         }
         if include_content:
             result['text_content'] = pdf.get('text_content', '')

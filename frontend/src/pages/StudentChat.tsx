@@ -14,11 +14,12 @@ import {
   Loader2,
   FileText,
   X,
+  CheckSquare,
+  Square,
 } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import ChatMessage from '@/components/ChatMessage'
 import SessionList from '@/components/SessionList'
-import PDFList from '@/components/PDFList'
 
 const StudentChat: React.FC = () => {
   const { currentUser, logout } = useAuth()
@@ -26,12 +27,12 @@ const StudentChat: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [chats, setChats] = useState<Chat[]>([])
   const [pdfs, setPdfs] = useState<PDFDocument[]>([])
-  const [currentPdfId, setCurrentPdfId] = useState<string | null>(null)
+  const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]) // Changed from single to array
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [uploadingPdf, setUploadingPdf] = useState(false)
-  
+
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -47,7 +48,6 @@ const StudentChat: React.FC = () => {
   }, [currentSessionId])
 
   useEffect(() => {
-    // Scroll to bottom when new messages arrive
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
@@ -112,14 +112,31 @@ const StudentChat: React.FC = () => {
     }
   }
 
+  const togglePdfSelection = (pdfId: string) => {
+    setSelectedPdfIds(prev => {
+      if (prev.includes(pdfId)) {
+        return prev.filter(id => id !== pdfId)
+      } else {
+        return [...prev, pdfId]
+      }
+    })
+  }
+
+  const selectAllPdfs = () => {
+    if (selectedPdfIds.length === pdfs.length) {
+      setSelectedPdfIds([])
+    } else {
+      setSelectedPdfIds(pdfs.map(pdf => pdf.id))
+    }
+  }
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!message.trim()) return
 
     let sessionId = currentSessionId
 
-    // Create session if none exists
     if (!sessionId) {
       try {
         const response: any = await apiClient.createSession()
@@ -136,29 +153,31 @@ const StudentChat: React.FC = () => {
     setMessage('')
     setSendingMessage(true)
 
-    // Optimistically add user message to UI
     const tempChat: Chat = {
       id: 'temp-' + Date.now(),
       user_id: currentUser?.id || '',
       session_id: sessionId,
       message: userMessage,
       response: '',
-      context_type: currentPdfId ? 'pdf' : 'direct',
-      pdf_id: currentPdfId || undefined,
+      context_type: selectedPdfIds.length > 0 ? 'pdf' : 'direct',
+      pdf_id: selectedPdfIds[0] || undefined,
       created_at: new Date().toISOString(),
     }
     setChats([...chats, tempChat])
 
     try {
-      const response: any = await apiClient.sendMessage(userMessage, sessionId, currentPdfId || undefined)
-      
-      // Replace temp message with actual response
+      // Send with multiple PDF IDs
+      const response: any = await apiClient.sendMessage(
+        userMessage,
+        sessionId,
+        selectedPdfIds.length > 0 ? selectedPdfIds : undefined
+      )
+
       setChats((prev) => {
         const filtered = prev.filter((c) => c.id !== tempChat.id)
         return [...filtered, response.chat]
       })
 
-      // Update session message count
       setSessions((prev) =>
         prev.map((s) =>
           s.id === sessionId
@@ -167,10 +186,9 @@ const StudentChat: React.FC = () => {
         )
       )
     } catch (error: any) {
-      toast.error('Failed to send message')
-      // Remove temp message on error
+      toast.error(error.message || 'Failed to send message')
       setChats((prev) => prev.filter((c) => c.id !== tempChat.id))
-      setMessage(userMessage) // Restore message
+      setMessage(userMessage)
     } finally {
       setSendingMessage(false)
     }
@@ -213,9 +231,7 @@ const StudentChat: React.FC = () => {
     try {
       await apiClient.deletePDF(pdfId)
       setPdfs(pdfs.filter((p) => p.id !== pdfId))
-      if (currentPdfId === pdfId) {
-        setCurrentPdfId(null)
-      }
+      setSelectedPdfIds(prev => prev.filter(id => id !== pdfId))
       toast.success('PDF deleted')
     } catch (error: any) {
       toast.error('Failed to delete PDF')
@@ -223,10 +239,10 @@ const StudentChat: React.FC = () => {
   }
 
   const currentSession = sessions.find((s) => s.id === currentSessionId)
-  const currentPdf = pdfs.find((p) => p.id === currentPdfId)
+  const selectedPdfs = pdfs.filter(pdf => selectedPdfIds.includes(pdf.id))
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-dark-bg">
       <Navbar
         title="Engineering Chatbot"
         userName={currentUser?.display_name || 'Student'}
@@ -235,14 +251,14 @@ const StudentChat: React.FC = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="w-80 bg-dark-card border-r border-dark-border flex flex-col shadow-xl">
           {/* Sessions Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-dark-border">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Chat Sessions</h2>
+              <h2 className="text-lg font-semibold text-gradient">Chat Sessions</h2>
               <button
                 onClick={handleCreateSession}
-                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="p-2 bg-gradient-to-br from-cyan-400 to-blue-500 hover:shadow-glow text-dark-bg rounded-lg transition-all"
                 title="New Session"
               >
                 <Plus className="w-5 h-5" />
@@ -261,10 +277,65 @@ const StudentChat: React.FC = () => {
           </div>
 
           {/* PDF Section */}
-          <div className="border-t border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">My PDFs</h3>
+          <div className="border-t border-dark-border p-4 bg-dark-bg/50">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-cyan-400" />
+                My PDFs ({selectedPdfIds.length} selected)
+              </h3>
+              {pdfs.length > 0 && (
+                <button
+                  onClick={selectAllPdfs}
+                  className="text-xs text-cyan-400 hover:text-cyan-300 font-medium"
+                >
+                  {selectedPdfIds.length === pdfs.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
             <div className="space-y-2 max-h-48 overflow-y-auto mb-3">
-              <PDFList pdfs={pdfs} onDelete={handleDeletePDF} />
+              {pdfs.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-4">No PDFs uploaded yet</p>
+              ) : (
+                pdfs.map((pdf) => (
+                  <div
+                    key={pdf.id}
+                    className={`flex items-center justify-between p-2 rounded-lg border transition-all group cursor-pointer ${selectedPdfIds.includes(pdf.id)
+                        ? 'bg-cyan-400/10 border-cyan-400'
+                        : 'bg-dark-hover border-dark-border hover:border-cyan-400/50'
+                      }`}
+                    onClick={() => togglePdfSelection(pdf.id)}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="flex-shrink-0">
+                        {selectedPdfIds.includes(pdf.id) ? (
+                          <CheckSquare className="w-5 h-5 text-cyan-400" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-500" />
+                        )}
+                      </div>
+                      <div className="p-1.5 bg-cyan-400/10 rounded">
+                        <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-300 truncate">{pdf.filename}</p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(pdf.file_size)} • {pdf.page_count} pages
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeletePDF(pdf.id)
+                      }}
+                      className="ml-2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                      title="Delete PDF"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
             <input
               ref={fileInputRef}
@@ -277,7 +348,7 @@ const StudentChat: React.FC = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingPdf}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-glow disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-all"
             >
               {uploadingPdf ? (
                 <>
@@ -295,69 +366,76 @@ const StudentChat: React.FC = () => {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col bg-gradient-to-br from-dark-bg to-dark-card">
           {/* Chat Header */}
-          <div className="bg-white border-b border-gray-200 p-4">
+          <div className="bg-dark-card border-b border-dark-border p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-100">
                   {currentSession?.session_name || 'Select or create a session'}
                 </h3>
-                {currentPdf ? (
-                  <p className="text-sm text-purple-600 mt-1 flex items-center gap-1">
+                {selectedPdfIds.length > 0 ? (
+                  <div className="text-sm text-cyan-400 mt-1 flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    Chatting with: {currentPdf.filename}
-                  </p>
+                    <span>
+                      Chatting with {selectedPdfIds.length} PDF{selectedPdfIds.length > 1 ? 's' : ''}:
+                    </span>
+                    <div className="flex gap-1 flex-wrap">
+                      {selectedPdfs.slice(0, 2).map(pdf => (
+                        <span key={pdf.id} className="px-2 py-0.5 bg-cyan-400/10 rounded text-xs">
+                          {pdf.filename.length > 15 ? pdf.filename.substring(0, 15) + '...' : pdf.filename}
+                        </span>
+                      ))}
+                      {selectedPdfs.length > 2 && (
+                        <span className="px-2 py-0.5 bg-cyan-400/10 rounded text-xs">
+                          +{selectedPdfs.length - 2} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-500 mt-1">Direct chat mode</p>
+                  <p className="text-sm text-gray-500 mt-1">Direct chat mode - Select PDFs to enable context</p>
                 )}
               </div>
-              <div className="flex items-center space-x-2">
-                <select
-                  value={currentPdfId || ''}
-                  onChange={(e) => setCurrentPdfId(e.target.value || null)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              {currentSessionId && (
+                <button
+                  onClick={() => {
+                    setChats([])
+                    toast.success('Chat cleared')
+                  }}
+                  className="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 font-medium"
                 >
-                  <option value="">Direct Chat</option>
-                  {pdfs.map((pdf) => (
-                    <option key={pdf.id} value={pdf.id}>
-                      Chat with: {pdf.filename}
-                    </option>
-                  ))}
-                </select>
-                {currentSessionId && (
-                  <button
-                    onClick={() => {
-                      setChats([])
-                      toast.success('Chat cleared')
-                    }}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium"
-                  >
-                    Clear Chat
-                  </button>
-                )}
-              </div>
+                  Clear Chat
+                </button>
+              )}
             </div>
           </div>
 
           {/* Chat Messages */}
           <div
             ref={chatContainerRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50"
+            className="flex-1 overflow-y-auto p-6 space-y-4"
           >
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
               </div>
             ) : chats.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">
+                  <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-glow">
+                    <MessageSquare className="w-12 h-12 text-dark-bg" />
+                  </div>
+                  <p className="text-gray-400 text-lg mb-2">
                     {currentSessionId
                       ? 'No messages yet. Start the conversation!'
                       : 'Start a conversation or select a session'}
                   </p>
+                  {selectedPdfIds.length > 0 && (
+                    <p className="text-cyan-400 text-sm">
+                      Ask questions about your {selectedPdfIds.length} selected PDF{selectedPdfIds.length > 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -365,10 +443,12 @@ const StudentChat: React.FC = () => {
             )}
             {sendingMessage && (
               <div className="flex justify-start">
-                <div className="max-w-3xl bg-white border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center space-x-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                    <span className="text-sm text-gray-600">Thinking...</span>
+                <div className="max-w-3xl bg-dark-card border border-dark-border rounded-2xl p-4">
+                  <div className="flex items-center space-x-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+                    <span className="text-sm text-gray-400">
+                      AI is analyzing {selectedPdfIds.length > 0 ? `${selectedPdfIds.length} PDF${selectedPdfIds.length > 1 ? 's' : ''}` : 'your question'}...
+                    </span>
                   </div>
                 </div>
               </div>
@@ -376,7 +456,7 @@ const StudentChat: React.FC = () => {
           </div>
 
           {/* Chat Input */}
-          <div className="bg-white border-t border-gray-200 p-4">
+          <div className="bg-dark-card border-t border-dark-border p-4 shadow-2xl">
             <form onSubmit={handleSendMessage} className="flex items-end space-x-3">
               <div className="flex-1">
                 <textarea
@@ -389,15 +469,19 @@ const StudentChat: React.FC = () => {
                     }
                   }}
                   rows={3}
-                  placeholder="Type your engineering question here..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder={
+                    selectedPdfIds.length > 0
+                      ? `Ask about your ${selectedPdfIds.length} selected PDF${selectedPdfIds.length > 1 ? 's' : ''}...`
+                      : 'Ask me anything about engineering...'
+                  }
+                  className="w-full px-4 py-3 bg-dark-hover border border-dark-border rounded-xl resize-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent outline-none text-gray-100 placeholder-gray-500"
                   disabled={sendingMessage}
                 />
               </div>
               <button
                 type="submit"
                 disabled={sendingMessage || !message.trim()}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors h-[60px] flex items-center justify-center"
+                className="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 hover:shadow-glow disabled:opacity-50 text-dark-bg font-semibold rounded-xl transition-all h-[60px] flex items-center justify-center"
               >
                 {sendingMessage ? (
                   <Loader2 className="w-6 h-6 animate-spin" />

@@ -73,5 +73,5 @@ class Chat:
             'context_type': chat['context_type'],
             'pdf_id': str(chat['pdf_id']) if chat.get('pdf_id') else None,
             'metadata': chat.get('metadata', {}),
-            'created_at': chat['created_at'].isoformat()
+            'created_at': chat['created_at'].isoformat() + 'Z'
         }

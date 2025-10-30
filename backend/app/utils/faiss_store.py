@@ -350,5 +350,44 @@ class FAISSVectorStore:
             logger.error(f"Error rebuilding FAISS index: {str(e)}")
             return False
 
+    def search_multiple_pdfs(
+        self, 
+        query_embedding: np.ndarray, 
+        pdf_ids: List[str], 
+        top_k_per_pdf: int = 3
+    ) -> List[Dict[str, Any]]:
+        """
+        Search across multiple PDFs
+        
+        Args:
+            query_embedding: Query vector
+            pdf_ids: List of PDF IDs to search
+            top_k_per_pdf: Results per PDF
+        
+        Returns:
+            Combined and ranked results from all PDFs
+        """
+        try:
+            if self.index.ntotal == 0:
+                logger.warning("⚠️  FAISS index is empty")
+                return []
+            all_results = []
+            # Search each PDF individually
+            for pdf_id in pdf_ids:
+                results = self.search(query_embedding, pdf_id, top_k_per_pdf)
+                for result in results:
+                    result['source_pdf_id'] = pdf_id
+                    all_results.append(result)
+            
+            # Sort by similarity across all PDFs
+            all_results.sort(key=lambda x: x['similarity'], reverse=True)
+            
+            logger.info(f"✅ Found {len(all_results)} results across {len(pdf_ids)} PDFs")
+            return all_results
+            
+        except Exception as e:
+            logger.error(f"❌ Error searching multiple PDFs: {str(e)}")
+            return []
+
 # Singleton instance
 faiss_store = FAISSVectorStore()

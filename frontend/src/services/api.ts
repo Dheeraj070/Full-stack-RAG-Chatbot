@@ -90,11 +90,26 @@ class ApiClient {
   }
 
   // Chat endpoints
-  async sendMessage(message: string, sessionId?: string, pdfId?: string) {
+  async sendMessage(message: string, sessionId?: string, pdfIds?: string | string[]) {
+    // Normalize pdfIds to always be an array or undefined
+    let pdf_ids: string[] | undefined
+
+    if (pdfIds) {
+      if (typeof pdfIds === 'string') {
+        pdf_ids = [pdfIds]
+      } else {
+        pdf_ids = pdfIds
+      }
+    }
+
     return this.request({
       method: 'POST',
       url: '/chat/send',
-      data: { message, session_id: sessionId, pdf_id: pdfId },
+      data: {
+        message,
+        session_id: sessionId,
+        pdf_ids: pdf_ids  // Send as array
+      },
     })
   }
 

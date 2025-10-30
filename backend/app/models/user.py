@@ -83,6 +83,6 @@ class User:
             'display_name': user['display_name'],
             'role': user['role'],
             'is_active': user.get('is_active', True),
-            'created_at': user['created_at'].isoformat(),
-            'last_login': user.get('last_login', user['created_at']).isoformat()
+            'created_at': user['created_at'].isoformat() + 'Z',
+            'last_login': user.get('last_login', user['created_at']).isoformat() + 'Z'
         }

@@ -82,6 +82,6 @@ class Session:
             'session_name': session['session_name'],
             'message_count': session.get('message_count', 0),
             'is_active': session.get('is_active', True),
-            'created_at': session['created_at'].isoformat(),
-            'updated_at': session['updated_at'].isoformat()
+            'created_at': session['created_at'].isoformat() + 'Z',
+            'updated_at': session['updated_at'].isoformat() + 'Z'
         }
